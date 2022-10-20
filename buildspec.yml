@@ -1,0 +1,29 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo "Installing HashiCorp Packer..."
+      - curl -fsSL https://apt.releases.hashicorp.com/gpg | apt-key add -
+      - apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+      - apt-get update && apt-get install packer
+    #   - curl -qL -o packer.zip https://releases.hashicorp.com/packer/0.12.3/packer_0.12.3_linux_amd64.zip && unzip packer.zip 
+    #   - ls -al
+      - packer --version
+      - echo "Validating win2016.json"
+      - packer validate win2016.json
+      
+  build:
+    commands:
+      - echo "Configuring AWS credentials"
+      - aws configure set region $REGION
+      - aws configure set aws_access_key_id $ACCESS_KEY
+      - aws configure set aws_secret_access_key $SECRET_KEY
+      # - aws ec2 describe-subnets --region ap-southeast-2  --filter "Name=vpc-id,Values=vpc-08457987261f40028" --query "Subnets[*].SubnetId" --output text
+      - echo "let’s inspect win2016.json to see what will happen"
+      - packer inspect win2016.json
+      - echo "Building HashiCorp Packer template with debug mode, win2016.json"
+      - packer build  -debug win2016.json
+  post_build:
+    commands:
+      - echo "HashiCorp Packer build completed on `date`"
