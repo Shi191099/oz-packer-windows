@@ -1,0 +1,82 @@
+{
+    "variables": {
+        "build_version": "{{isotime \"2006.01.02.150405\"}}",
+        "aws_profile": "default",
+        "vpc_id": "vpc-08457987261f40028",
+        "subnet_id": "subnet-0bbe562176349b709",
+        "security_group_id": "sg-0f08469478b351af5"
+    },
+    "builders": [{
+        "type": "amazon-ebs",
+        "region": "ap-southeast-2",
+        "profile": "{{user `aws_profile`}}",
+        "vpc_id": "{{user `vpc_id`}}",
+        "subnet_id": "{{user `subnet_id`}}",
+        "security_group_id": "{{user `security_group_id`}}",
+        "source_ami_filter": {
+            "filters": {
+                "name": "Windows_Server-2016-English-Full-Base-*",
+                "root-device-type": "ebs",
+                "virtualization-type": "hvm"
+            },
+            "most_recent": true,
+            "owners": [
+                "801119661308"
+            ]
+        },
+        "ami_name": "WIN2016-CUSTOM-{{user `build_version`}}",
+        "instance_type": "t3.xlarge",
+        "user_data_file": "./enable-winrm.ps1",
+        "associate_public_ip_address": true,
+        "communicator": "winrm",
+        "winrm_username": "Administrator",
+        "winrm_port": 5986,
+        "winrm_timeout": "15m",
+        "winrm_use_ssl": true,
+        "winrm_insecure": true
+    }],
+    "provisioners": [{
+            "type": "powershell",
+            "inline": [
+                "Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServerRole",
+                "Enable-WindowsOptionalFeature -Online -FeatureName IIS-WebServer"
+            ]
+        },
+        {
+            "type": "powershell",
+            "inline": [
+                "invoke-webrequest -UseBasicparsing -Outfile docker.zip https://download.docker.com/components/engine/windows-server/17.06/docker-17.06.1-ee-1.zip",
+                "Expand-Archive docker.zip -DestinationPath $Env:ProgramFiles",
+                "Remove-Item -Force docker.zip",
+                "$null = Install-WindowsFeature containers"
+            ]
+        },
+        {
+            "type": "powershell",
+            "inline": [
+                "wget 'http://javadl.oracle.com/webapps/download/AutoDL?BundleId=210185' -Outfile 'C:\\jreinstaller.exe'",
+                "Start-Process -filepath C:\\jreinstaller.exe -passthru -wait -argumentlist \"/s\",\"INSTALLDIR=c:\\Java\\jre1.8.0_91\" ",
+                "del C:\\jreinstaller.exe",
+                "$env:JAVA_HOME= \"c:\\Java\\jre1.8.0_91\"",
+                "setx PATH \"$env:path;c:\\Java\\jre1.8.0_91\\bin\""
+            ]
+        },
+        {
+            "type": "powershell",
+            "inline": [
+                "java -version"
+            ]
+        },
+        {
+            "type": "windows-restart",
+            "restart_check_command": "powershell -command \"&amp; {Write-Output 'Machine restarted.'}\""
+        },
+        {
+            "type": "powershell",
+            "inline": [
+                "C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Scripts\\InitializeInstance.ps1 -Schedule",
+                "C:\\ProgramData\\Amazon\\EC2-Windows\\Launch\\Scripts\\SysprepInstance.ps1 -NoShutdown"
+            ]
+        }
+    ]
+}
